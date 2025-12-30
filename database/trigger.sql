@@ -1,3 +1,4 @@
+use Quan_ly_thu_phi;
 --Khi thay đổi HouseholdHead, cập nhật tên trong Residents
 DELIMITER $$
 
@@ -12,7 +13,7 @@ BEGIN
   END IF;
 END$$
 
-DELIMITER ;
+DELIMITER;
 
 -- Khi xóa Household, xóa các bản ghi liên quan trong Residents, Vehicles và FeeDetails
 DELIMITER $$
@@ -31,7 +32,7 @@ BEGIN
   DELETE FROM FeeDetails WHERE HouseholdID = OLD.HouseholdID;
 END$$
 
-DELIMITER ;
+DELIMITER;
 
 -- khi xóa feecollection thì sẽ xóa các bản ghi liên quan trong FeeDetails
 DELIMITER $$
@@ -43,8 +44,7 @@ BEGIN
   DELETE FROM FeeDetails WHERE CollectionID = OLD.CollectionID;
 END$$
 
-DELIMITER ;
-
+DELIMITER;
 
 -- Trigger cập nhật trạng thái HasVehicle trong bảng Households khi có xe mới được thêm vào
 DELIMITER $$
@@ -58,7 +58,7 @@ BEGIN
   WHERE HouseholdID = NEW.HouseholdID;
 END$$
 
-DELIMITER ;
+DELIMITER;
 
 -- Trigger cập nhật trạng thái HasVehicle trong bảng Households khi xe bị xóa
 DELIMITER $$
@@ -80,4 +80,4 @@ BEGIN
   END IF;
 END$$
 
-DELIMITER ;
+DELIMITER;
