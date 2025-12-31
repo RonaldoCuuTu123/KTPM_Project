@@ -1,9 +1,8 @@
 import * as householdService from '../services/HouseholdServices.js';
-import sequelize from '../config/dbsetup.js';          // ← THÊM
-import Household from '../models/Household.js';        // ← THÊM
-import Resident from '../models/Resident.js';          // ← THÊM  
-import HouseholdHistory from '../models/HouseholdHistory.js'; // ← THÊM
-
+import sequelize from '../config/dbsetup.js';
+import Household from '../models/Household.js';
+import Resident from '../models/Resident.js';
+import HouseholdHistory from '../models/HouseholdHistory.js';
 
 // Lấy tất cả hộ gia đình
 export const getAllHouseholds = async (req, res) => {
@@ -29,12 +28,26 @@ export const getHouseholdById = async (req, res) => {
 // Thêm hộ gia đình mới
 export const createHousehold = async (req, res) => {
   try {
-    const { RoomNumber, Type, HouseholdHead, Members, Notes } = req.body;
-    if (!RoomNumber || !Type || !Members || !HouseholdHead) {
-      return res.status(400).json({ message: 'RoomNumber, Type, HousehouseHead and Members are required' });
+    const { HouseholdNumber, Street, Ward, District, HouseholdHead, Members, Notes } = req.body;
+
+    // ✅ CẬP NHẬT VALIDATION
+    if (!HouseholdNumber || !HouseholdHead || !Members) {
+      return res.status(400).json({
+        error: true,
+        message: 'HouseholdNumber (Số nhà), HouseholdHead (Chủ hộ) và Members (Số thành viên) là bắt buộc'
+      });
     }
 
-    const newHousehold = await householdService.createHousehold({ RoomNumber, Type, HouseholdHead, Members, Notes });
+    const newHousehold = await householdService.createHousehold({
+      HouseholdNumber,
+      Street,
+      Ward,
+      District,
+      HouseholdHead,
+      Members,
+      Notes
+    });
+
     res.status(201).json({ error: false, newHousehold });
   } catch (error) {
     res.status(500).json({ error: true, message: 'Error creating household', error });
@@ -63,33 +76,34 @@ export const deleteHousehold = async (req, res) => {
   }
 };
 
-// Tìm hộ gia đình theo số phòng
-export const findHouseholdByRoomNumber = async (req, res) => {
+// ✅ TÌM HỘ THEO SỐ NHÀ (ĐỔI TỪ RoomNumber)
+export const findHouseholdByNumber = async (req, res) => {
   try {
-    const roomNumber = req.body.roomNumber || req.query.roomNumber;
-    if (!roomNumber) {
-      return res.status(400).json({ error: true, message: 'roomNumber is required' });
+    const householdNumber = req.body.householdNumber || req.query.householdNumber;
+    if (!householdNumber) {
+      return res.status(400).json({ error: true, message: 'householdNumber (số nhà) là bắt buộc' });
     }
-    const household = await householdService.findHouseholdByRoomNumber(roomNumber);
+    const household = await householdService.findHouseholdByNumber(householdNumber);
     if (!household)
-      return res.status(404).json({ error: true, message: 'Household not found' });
+      return res.status(404).json({ error: true, message: 'Không tìm thấy hộ gia đình' });
     res.status(200).json(household);
   } catch (error) {
     res.status(500).json({ error: true, message: 'Error finding household', error });
   }
 };
 
+// Tách hộ khẩu
 export const splitHousehold = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { originalHouseholdId, newRoomNumber, newHouseholdHead, residentIds, Notes } = req.body;
+    const { originalHouseholdId, newHouseholdNumber, newHouseholdHead, residentIds, Notes } = req.body;
 
-    if (!originalHouseholdId || !newRoomNumber || !newHouseholdHead || !residentIds || residentIds.length === 0) {
+    if (!originalHouseholdId || !newHouseholdNumber || !newHouseholdHead || !residentIds || residentIds.length === 0) {
       await transaction.rollback();
       return res.status(400).json({
         error: true,
-        message: 'Thiếu thông tin: originalHouseholdId, newRoomNumber, newHouseholdHead và residentIds'
+        message: 'Thiếu thông tin: originalHouseholdId, newHouseholdNumber (số nhà mới), newHouseholdHead và residentIds'
       });
     }
 
@@ -102,14 +116,13 @@ export const splitHousehold = async (req, res) => {
 
     // Tạo hộ mới
     const newHousehold = await Household.create({
-      RoomNumber: newRoomNumber,
+      HouseholdNumber: newHouseholdNumber,
       Street: originalHousehold.Street,
       Ward: originalHousehold.Ward,
       District: originalHousehold.District,
-      Type: originalHousehold.Type,
       HouseholdHead: newHouseholdHead,
       Members: residentIds.length,
-      Notes: Notes || `Tách từ hộ ${originalHousehold.RoomNumber}`
+      Notes: Notes || `Tách từ hộ số ${originalHousehold.HouseholdNumber}`
     }, { transaction });
 
     // Chuyển các cư dân sang hộ mới
@@ -135,7 +148,7 @@ export const splitHousehold = async (req, res) => {
     await HouseholdHistory.create({
       HouseholdID: originalHouseholdId,
       ChangeType: 'Thay đổi thông tin khác',
-      ChangeContent: `Tách hộ thành hộ mới ${newRoomNumber}`,
+      ChangeContent: `Tách hộ thành hộ mới số ${newHouseholdNumber}`,
       ChangeDate: new Date(),
       Notes: `${residentIds.length} thành viên được chuyển sang hộ mới`
     }, { transaction });

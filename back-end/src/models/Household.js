@@ -7,38 +7,42 @@ const Household = sequelize.define("Household", {
     primaryKey: true,
     autoIncrement: true
   },
-  RoomNumber: {
+  HouseholdNumber: {  // ✅ ĐỔI TỪ RoomNumber
     type: DataTypes.STRING(20),
     allowNull: false,
-    unique: true
+    unique: true,
+    comment: 'Số nhà/hộ khẩu'
   },
   Street: {
-    type: DataTypes.STRING(100)
+    type: DataTypes.STRING(100),
+    comment: 'Đường phố/Ấp'
   },
   Ward: {
-    type: DataTypes.STRING(50)
+    type: DataTypes.STRING(50),
+    comment: 'Phường/Xã/Thị trấn'
   },
   District: {
-    type: DataTypes.STRING(50)
-  },
-  Type: {
-    type: DataTypes.ENUM('Đơn', 'Đôi'),
-    allowNull: false
+    type: DataTypes.STRING(50),
+    comment: 'Quận/Huyện'
   },
   HouseholdHead: {
     type: DataTypes.STRING(50),
-    allowNull: false
+    allowNull: false,
+    comment: 'Họ tên chủ hộ'
   },
   Members: {
     type: DataTypes.INTEGER,
-    defaultValue: 0
+    defaultValue: 0,
+    comment: 'Số thành viên'
   },
   HasVehicle: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false
+    defaultValue: false,
+    comment: 'Có phương tiện hay không'
   },
   Notes: {
-    type: DataTypes.TEXT
+    type: DataTypes.TEXT,
+    comment: 'Ghi chú'
   }
 }, {
   tableName: "Households",

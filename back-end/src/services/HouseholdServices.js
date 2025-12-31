@@ -1,6 +1,9 @@
 import Household from "../models/Household.js";
+import sequelize from "../config/dbsetup.js";
+import HouseholdHistory from "../models/HouseholdHistory.js";
+import Resident from "../models/Resident.js";
 
-//CRUD household
+// CRUD household
 export const getAllHouseholds = async () => {
   return await Household.findAll();
 };
@@ -27,15 +30,15 @@ export const deleteHousehold = async (id) => {
   return true;
 };
 
-export const findHouseholdByRoomNumber = async (roomNumber) => {
-  return await Household.findOne({ where: { RoomNumber: roomNumber } });
+// ✅ ĐỔI TỪ findHouseholdByRoomNumber → findHouseholdByNumber
+export const findHouseholdByNumber = async (householdNumber) => {
+  return await Household.findOne({
+    where: { HouseholdNumber: householdNumber }
+  });
 };
 
-import sequelize from "../config/dbsetup.js";
-import HouseholdHistory from "../models/HouseholdHistory.js";
-import Resident from "../models/Resident.js";
-
-export const splitHousehold = async (originalHouseholdId, newRoomNumber, newHouseholdHead, residentIds, Notes) => {
+// Tách hộ khẩu
+export const splitHousehold = async (originalHouseholdId, newHouseholdNumber, newHouseholdHead, residentIds, Notes) => {
   const transaction = await sequelize.transaction();
 
   try {
@@ -46,14 +49,13 @@ export const splitHousehold = async (originalHouseholdId, newRoomNumber, newHous
 
     // Tạo hộ mới
     const newHousehold = await Household.create({
-      RoomNumber: newRoomNumber,
+      HouseholdNumber: newHouseholdNumber,
       Street: originalHousehold.Street,
       Ward: originalHousehold.Ward,
       District: originalHousehold.District,
-      Type: originalHousehold.Type,
       HouseholdHead: newHouseholdHead,
       Members: residentIds.length,
-      Notes: Notes || `Tách từ hộ ${originalHousehold.RoomNumber}`
+      Notes: Notes || `Tách từ hộ số ${originalHousehold.HouseholdNumber}`
     }, { transaction });
 
     // Chuyển cư dân
@@ -79,7 +81,7 @@ export const splitHousehold = async (originalHouseholdId, newRoomNumber, newHous
     await HouseholdHistory.create({
       HouseholdID: originalHouseholdId,
       ChangeType: 'Thay đổi thông tin khác',
-      ChangeContent: `Tách hộ thành hộ mới ${newRoomNumber}`,
+      ChangeContent: `Tách hộ thành hộ mới số ${newHouseholdNumber}`,
       ChangeDate: new Date(),
       Notes: `${residentIds.length} thành viên được chuyển sang hộ mới`
     }, { transaction });
