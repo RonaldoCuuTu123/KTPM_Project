@@ -9,7 +9,7 @@ import { createDefaultUser } from "./src/utils/createDefaultUser.js";
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
-// Models (import để Sequelize biết các bảng)
+// Models
 import User from "./src/models/User.js";
 import Household from "./src/models/Household.js";
 import Vehicle from "./src/models/Vehicle.js";
@@ -60,22 +60,44 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-// Accept all origins
+// ============================================
+// MIDDLEWARE - QUAN TRỌNG: THỨ TỰ CỰC KỲ QUAN TRỌNG!
+// ============================================
+
+// 1. CORS - PHẢI ĐẶT ĐẦU TIÊN
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// 2. Manual CORS headers (backup)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
   next();
 });
 
-// Middleware
-app.use(cors());
+// 3. Body parser
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 4. Helmet - TẮT HOÀN TOÀN CSP
 app.use(helmet({
   contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false
 }));
+
+// 5. Morgan logger
 app.use(morgan("dev"));
 
 // Swagger UI
@@ -86,11 +108,14 @@ app.get("/", (req, res) => {
   res.json({
     message: "API đang chạy...",
     version: "2.0.0",
-    documentation: `http://localhost:${PORT}/api-docs`
+    documentation: `http://localhost:${PORT}/api-docs`,
+    status: "OK"
   });
 });
 
-// Routes
+// ============================================
+// ROUTES
+// ============================================
 app.use("/api/users", UserRoutes);
 app.use("/api/households", HouseholdRoutes);
 app.use("/api/residents", ResidentRoutes);
@@ -102,23 +127,49 @@ app.use("/api/household-history", HouseholdHistoryRoutes);
 app.use("/api/temporary-absence", TemporaryAbsenceRoutes);
 app.use("/api/temporary-residence", TemporaryResidenceRoutes);
 app.use("/api/statistics", StatisticsRoutes);
-app.use("/api/household-history", HouseholdHistoryRoutes);
-app.use("/api/temporary-absence", TemporaryAbsenceRoutes);
-app.use("/api/temporary-residence", TemporaryResidenceRoutes);
-app.use("/api/statistics", StatisticsRoutes);
 
-// Khởi động server
+// ============================================
+// ERROR HANDLERS
+// ============================================
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: true,
+    message: 'Route not found',
+    path: req.originalUrl
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err);
+  res.status(err.status || 500).json({
+    error: true,
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// ============================================
+// KHỞI ĐỘNG SERVER
+// ============================================
 (async () => {
   try {
     // Tạo người dùng mặc định
     await createDefaultUser();
 
     app.listen(PORT, () => {
+      console.log('='.repeat(50));
       console.log(`✅ Server đang chạy tại http://localhost:${PORT}`);
       console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
       console.log(`🔧 Môi trường: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔓 CORS: Enabled (*)`);
+      console.log(`🛡️  CSP: Disabled`);
+      console.log('='.repeat(50));
     });
   } catch (error) {
     console.error("❌ Lỗi khởi động server:", error);
+    process.exit(1);
   }
 })();

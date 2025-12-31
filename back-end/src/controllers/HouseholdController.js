@@ -1,4 +1,9 @@
 import * as householdService from '../services/HouseholdServices.js';
+import sequelize from '../config/dbsetup.js';          // ← THÊM
+import Household from '../models/Household.js';        // ← THÊM
+import Resident from '../models/Resident.js';          // ← THÊM  
+import HouseholdHistory from '../models/HouseholdHistory.js'; // ← THÊM
+
 
 // Lấy tất cả hộ gia đình
 export const getAllHouseholds = async (req, res) => {

@@ -120,3 +120,4 @@ CREATE TABLE Vehicles (
     ) NOT NULL,
     FOREIGN KEY (HouseholdID) REFERENCES Households (HouseholdID)
 );
+

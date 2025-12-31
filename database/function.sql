@@ -1,7 +1,6 @@
 USE Quan_ly_thu_phi;
 
--- Function to calculate the total parking fee for a household based on the vehicles they own.
-DELIMITER / /
+DELIMITER //
 
 CREATE FUNCTION calculate_parking_fee_by_household(hid INT)
 RETURNS DECIMAL(10,2)
@@ -16,11 +15,13 @@ BEGIN
       WHEN 'Ô tô' THEN 1200000
       ELSE 0
     END
-  ) INTO fee
+  )
+  INTO fee
   FROM Vehicles
   WHERE HouseholdID = hid;
 
   RETURN IFNULL(fee, 0);
-END//
+END
+//
 
-DELIMITER;
+DELIMITER ;
