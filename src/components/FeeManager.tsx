@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { CreditCard, Plus, Search, CheckCircle2, AlertCircle, Calendar, Wallet, Download } from 'lucide-react';
-import { Household, FeeCampaign, Payment, FeeType } from '../types';
+import { Household, FeeCampaign, Payment, FeeType } from '@/types';
 
 interface FeeManagerProps {
   households: Household[];

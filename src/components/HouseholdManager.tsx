@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 /* Add Users to the lucide-react import list */
 import { Plus, Search, Eye, Edit2, Split, Trash2, X, ChevronRight, Users } from 'lucide-react';
-import { Household, Resident, Gender, ResidentStatus } from '../types';
+import { Household, Resident, Gender, ResidentStatus } from '@/types';
 
 interface HouseholdManagerProps {
   households: Household[];

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Users, Home, Wallet, TrendingUp, UserPlus, FileCheck } from 'lucide-react';
-import { Household, Payment, AppView } from '../types';
+import { Household, Payment, AppView } from '@/types';
 
 interface DashboardProps {
   households: Household[];

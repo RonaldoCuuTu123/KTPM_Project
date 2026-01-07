@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Search, UserPlus, Filter, MoreVertical, MapPin, Briefcase, Calendar, ChevronRight, X } from 'lucide-react';
-import { Household, Resident, Gender, ResidentStatus } from '../types';
+import { Household, Resident, Gender, ResidentStatus } from '@/types';
 
 interface ResidentManagerProps {
   households: Household[];

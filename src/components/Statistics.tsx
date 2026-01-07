@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line 
 } from 'recharts';
-import { Household, Resident, Gender, ResidentStatus, Payment, FeeCampaign } from '../types';
+import { Household, Resident, Gender, ResidentStatus, Payment, FeeCampaign } from '@/types';
 
 interface StatisticsProps {
   households: Household[];

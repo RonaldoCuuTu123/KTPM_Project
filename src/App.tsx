@@ -29,13 +29,13 @@ import {
   ResidentStatus, 
   FeeType, 
   AgeGroup 
-} from './types';
-import { INITIAL_HOUSEHOLDS, INITIAL_FEES } from './constants';
-import HouseholdManager from './components/HouseholdManager';
-import ResidentManager from './components/ResidentManager';
-import FeeManager from './components/FeeManager';
-import Statistics from './components/Statistics';
-import Dashboard from './components/Dashboard';
+} from '@/types';
+import { INITIAL_HOUSEHOLDS, INITIAL_FEES } from '@/constants';
+import HouseholdManager from '@/components/HouseholdManager';
+import ResidentManager from '@/components/ResidentManager';
+import FeeManager from '@/components/FeeManager';
+import Statistics from '@/components/Statistics';
+import Dashboard from '@/components/Dashboard';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('DASHBOARD');
