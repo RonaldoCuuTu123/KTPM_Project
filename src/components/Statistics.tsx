@@ -1,8 +1,8 @@
 
 import React, { useMemo } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
 import { Household, Resident, Gender, ResidentStatus, Payment, FeeCampaign } from '@/types';
 
@@ -86,7 +86,7 @@ const Statistics: React.FC<StatisticsProps> = ({ households, payments, fees }) =
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -98,10 +98,10 @@ const Statistics: React.FC<StatisticsProps> = ({ households, payments, fees }) =
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ageData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                <Tooltip
+                  cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
                 <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -117,8 +117,8 @@ const Statistics: React.FC<StatisticsProps> = ({ households, payments, fees }) =
               <BarChart data={revenueData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={150} axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                <Tooltip 
+                <YAxis dataKey="name" type="category" width={150} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <Tooltip
                   formatter={(value: number) => value.toLocaleString() + ' đ'}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
@@ -128,7 +128,7 @@ const Statistics: React.FC<StatisticsProps> = ({ households, payments, fees }) =
           </div>
         </div>
       </div>
-      
+
       <div className="bg-blue-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
           <h3 className="text-xl font-bold mb-2">Xuất báo cáo định kỳ</h3>

@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 /* Add Users to the lucide-react import list */
 import { Plus, Search, Eye, Edit2, Split, Trash2, X, ChevronRight, Users } from 'lucide-react';
 import { Household, Resident, Gender, ResidentStatus } from '@/types';
+import { api } from '@/services/api';
 
 interface HouseholdManagerProps {
   households: Household[];
@@ -13,35 +14,50 @@ const HouseholdManager: React.FC<HouseholdManagerProps> = ({ households, setHous
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredHouseholds = households.filter(h => 
+  const filteredHouseholds = households.filter(h =>
     h.headName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     h.householdNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     h.address.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddHousehold = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddHousehold = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    const newHousehold: Household = {
-      id: `HH${Date.now()}`,
-      householdNumber: formData.get('number') as string,
-      headName: formData.get('headName') as string,
-      address: formData.get('address') as string,
-      street: formData.get('street') as string,
-      ward: 'La Khê',
-      district: 'Hà Đông',
-      history: [{
-        id: `HIST${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        content: 'Tạo mới hộ khẩu'
-      }],
-      members: [] // Usually added via ResidentManager
-    };
 
-    setHouseholds([...households, newHousehold]);
-    setIsAddModalOpen(false);
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const newHouseholdData = {
+        householdNumber: formData.get('number') as string,
+        headName: formData.get('headName') as string,
+        address: formData.get('address') as string,
+        street: formData.get('street') as string,
+        ward: 'La Khê',
+        district: 'Hà Đông',
+      };
+
+      // Gọi API tạo mới hộ khẩu
+      await api.createHousehold(newHouseholdData);
+
+      // Refresh lại danh sách từ API
+      const updatedHouseholds = await api.getHouseholds();
+      setHouseholds(updatedHouseholds);
+
+      setIsAddModalOpen(false);
+      // Reset form
+      (e.target as HTMLFormElement).reset();
+      alert('Thêm hộ khẩu thành công!');
+    } catch (err) {
+      console.error('Lỗi thêm hộ khẩu:', err);
+      setError('Có lỗi xảy ra khi thêm hộ khẩu. Vui lòng thử lại.');
+      alert('Lỗi: Có lỗi xảy ra khi thêm hộ khẩu.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,15 +65,15 @@ const HouseholdManager: React.FC<HouseholdManagerProps> = ({ households, setHous
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="relative flex-1 w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input 
-            type="text" 
-            placeholder="Tìm kiếm chủ hộ, số hộ khẩu, địa chỉ..." 
+          <input
+            type="text"
+            placeholder="Tìm kiếm chủ hộ, số hộ khẩu, địa chỉ..."
             className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <button 
+        <button
           onClick={() => setIsAddModalOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-lg shadow-blue-600/20 transition-all"
         >
@@ -93,7 +109,7 @@ const HouseholdManager: React.FC<HouseholdManagerProps> = ({ households, setHous
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={() => setSelectedHousehold(h)}
                         className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="Xem chi tiết"
                       >
@@ -162,7 +178,7 @@ const HouseholdManager: React.FC<HouseholdManagerProps> = ({ households, setHous
                 <X className="w-6 h-6 text-slate-500" />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-8">
               <div className="mb-8 bg-blue-50 p-6 rounded-2xl border border-blue-100 flex gap-6">
                 <div className="w-24 h-24 bg-blue-200 rounded-xl flex items-center justify-center">
@@ -237,6 +253,6 @@ const HouseholdManager: React.FC<HouseholdManagerProps> = ({ households, setHous
 };
 
 const FileText = ({ className }: any) => <FileTextIcon className={className} />;
-const FileTextIcon = (props: any) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>;
+const FileTextIcon = (props: any) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>;
 
 export default HouseholdManager;

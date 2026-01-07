@@ -12,37 +12,37 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ households, payments, setView }) => {
   const totalResidents = households.reduce((acc, h) => acc + h.members.length, 0);
   const totalCollected = payments.reduce((acc, p) => acc + p.amount, 0);
-  
+
   const recentHouseholds = [...households].slice(-4).reverse();
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          icon={<Home className="w-6 h-6 text-blue-600" />} 
-          label="Tổng số hộ" 
-          value={households.length} 
+        <StatCard
+          icon={<Home className="w-6 h-6 text-blue-600" />}
+          label="Tổng số hộ"
+          value={households.length}
           subValue="+2 tháng này"
           color="bg-blue-50"
         />
-        <StatCard 
-          icon={<Users className="w-6 h-6 text-green-600" />} 
-          label="Tổng nhân khẩu" 
-          value={totalResidents} 
+        <StatCard
+          icon={<Users className="w-6 h-6 text-green-600" />}
+          label="Tổng nhân khẩu"
+          value={totalResidents}
           subValue="+12 người mới"
           color="bg-green-50"
         />
-        <StatCard 
-          icon={<Wallet className="w-6 h-6 text-amber-600" />} 
-          label="Phí đã thu" 
-          value={totalCollected.toLocaleString() + ' đ'} 
+        <StatCard
+          icon={<Wallet className="w-6 h-6 text-amber-600" />}
+          label="Phí đã thu"
+          value={totalCollected.toLocaleString() + ' đ'}
           subValue="85% mục tiêu"
           color="bg-amber-50"
         />
-        <StatCard 
-          icon={<TrendingUp className="w-6 h-6 text-purple-600" />} 
-          label="Tạm trú/Tạm vắng" 
-          value="48" 
+        <StatCard
+          icon={<TrendingUp className="w-6 h-6 text-purple-600" />}
+          label="Tạm trú/Tạm vắng"
+          value="48"
           subValue="Cần cập nhật"
           color="bg-purple-50"
         />
@@ -52,7 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ households, payments, setView }) 
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800">Hộ khẩu mới đăng ký</h3>
-            <button 
+            <button
               onClick={() => setView('HOUSEHOLDS')}
               className="text-sm text-blue-600 font-medium hover:underline"
             >
@@ -97,26 +97,26 @@ const Dashboard: React.FC<DashboardProps> = ({ households, payments, setView }) 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <h3 className="text-lg font-bold text-slate-800 mb-6">Thao tác nhanh</h3>
           <div className="space-y-4">
-            <QuickActionButton 
-              icon={<UserPlus className="w-5 h-5" />} 
-              label="Thêm nhân khẩu mới" 
+            <QuickActionButton
+              icon={<UserPlus className="w-5 h-5" />}
+              label="Thêm nhân khẩu mới"
               onClick={() => setView('RESIDENTS')}
               color="text-blue-600 bg-blue-50"
             />
-            <QuickActionButton 
-              icon={<FileCheck className="w-5 h-5" />} 
-              label="Khai báo tạm trú" 
+            <QuickActionButton
+              icon={<FileCheck className="w-5 h-5" />}
+              label="Khai báo tạm trú"
               onClick={() => setView('RESIDENTS')}
               color="text-green-600 bg-green-50"
             />
-            <QuickActionButton 
-              icon={<Wallet className="w-5 h-5" />} 
-              label="Thu phí định kỳ" 
+            <QuickActionButton
+              icon={<Wallet className="w-5 h-5" />}
+              label="Thu phí định kỳ"
               onClick={() => setView('FEES')}
               color="text-amber-600 bg-amber-50"
             />
           </div>
-          
+
           <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
             <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Thông báo Ban quản lý</p>
             <p className="text-sm text-slate-600 leading-relaxed">
@@ -141,7 +141,7 @@ const StatCard = ({ icon, label, value, subValue, color }: any) => (
 );
 
 const QuickActionButton = ({ icon, label, onClick, color }: any) => (
-  <button 
+  <button
     onClick={onClick}
     className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all duration-200 group text-left"
   >

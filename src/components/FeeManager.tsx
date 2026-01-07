@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CreditCard, Plus, Search, CheckCircle2, AlertCircle, Calendar, Wallet, Download } from 'lucide-react';
 import { Household, FeeCampaign, Payment, FeeType } from '@/types';
+import { api } from '@/services/api';
 
 interface FeeManagerProps {
   households: Household[];
@@ -12,39 +13,58 @@ interface FeeManagerProps {
 }
 
 const FeeManager: React.FC<FeeManagerProps> = ({ households, fees, payments, setPayments, setFees }) => {
-  const [selectedCampaign, setSelectedCampaign] = useState<FeeCampaign | null>(fees[0]);
+  const [selectedCampaign, setSelectedCampaign] = useState<FeeCampaign | null>(fees[0] || null);
   const [isCollecting, setIsCollecting] = useState(false);
   const [selectedHouseholdId, setSelectedHouseholdId] = useState('');
   const [amount, setAmount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const campaignPayments = payments.filter(p => p.campaignId === selectedCampaign?.id);
   const paidHouseholdIds = new Set(campaignPayments.map(p => p.householdId));
   const totalAmountCollected = campaignPayments.reduce((acc, p) => acc + p.amount, 0);
 
-  const handleCollect = (e: React.FormEvent) => {
+  const handleCollect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCampaign || !selectedHouseholdId) return;
 
-    const newPayment: Payment = {
-      id: `P${Date.now()}`,
-      householdId: selectedHouseholdId,
-      campaignId: selectedCampaign.id,
-      amount: amount,
-      paymentDate: new Date().toISOString().split('T')[0],
-      collectorName: 'Nguyễn Văn Cường'
-    };
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    setPayments([...payments, newPayment]);
-    setIsCollecting(false);
-    setSelectedHouseholdId('');
-    setAmount(0);
+      const paymentData = {
+        householdId: selectedHouseholdId,
+        campaignId: selectedCampaign.id,
+        amount: amount,
+        paymentDate: new Date().toISOString().split('T')[0],
+        collectorName: 'Nguyễn Văn Cường'
+      };
+
+      // Gọi API tạo thanh toán
+      await api.createPayment(paymentData);
+
+      // Refresh lại danh sách thanh toán
+      const updatedPayments = await api.getPayments();
+      setPayments(updatedPayments);
+
+      setIsCollecting(false);
+      setSelectedHouseholdId('');
+      setAmount(0);
+      alert('Thu phí thành công!');
+    } catch (err) {
+      console.error('Lỗi thu phí:', err);
+      setError('Có lỗi xảy ra khi thu phí. Vui lòng thử lại.');
+      alert('Lỗi: Có lỗi xảy ra khi thu phí.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const calculateMandatoryFee = (hId: string) => {
     if (!selectedCampaign || selectedCampaign.type !== FeeType.MANDATORY) return 0;
     const h = households.find(x => x.id === hId);
     if (!h) return 0;
-    return (selectedCampaign.amountPerMonthPerPerson || 0) * 12 * h.members.length;
+    return (selectedCampaign.amountPerMonthPerPerson || 0) * 12 * (h.members?.length || 0);
   };
 
   return (
@@ -60,16 +80,14 @@ const FeeManager: React.FC<FeeManagerProps> = ({ households, fees, payments, set
               <button
                 key={f.id}
                 onClick={() => setSelectedCampaign(f)}
-                className={`w-full p-4 rounded-xl text-left border transition-all duration-200 ${
-                  selectedCampaign?.id === f.id 
-                    ? 'bg-white border-blue-500 shadow-md ring-2 ring-blue-500/10' 
-                    : 'bg-white border-slate-200 hover:border-blue-200'
-                }`}
+                className={`w-full p-4 rounded-xl text-left border transition-all duration-200 ${selectedCampaign?.id === f.id
+                  ? 'bg-white border-blue-500 shadow-md ring-2 ring-blue-500/10'
+                  : 'bg-white border-slate-200 hover:border-blue-200'
+                  }`}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                    f.type === FeeType.MANDATORY ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
-                  }`}>
+                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${f.type === FeeType.MANDATORY ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
+                    }`}>
                     {f.type}
                   </span>
                   <span className="text-xs text-slate-400">{f.startDate}</span>
@@ -105,7 +123,7 @@ const FeeManager: React.FC<FeeManagerProps> = ({ households, fees, payments, set
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <button 
+                    <button
                       onClick={() => setIsCollecting(true)}
                       className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-lg"
                     >
@@ -190,8 +208,8 @@ const FeeManager: React.FC<FeeManagerProps> = ({ households, fees, payments, set
             <form onSubmit={handleCollect} className="p-6 space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hộ gia đình nộp</label>
-                <select 
-                  required 
+                <select
+                  required
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20"
                   value={selectedHouseholdId}
                   onChange={(e) => {
@@ -210,9 +228,9 @@ const FeeManager: React.FC<FeeManagerProps> = ({ households, fees, payments, set
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Số tiền (VNĐ)</label>
-                <input 
-                  type="number" 
-                  required 
+                <input
+                  type="number"
+                  required
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 font-bold text-lg"
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}

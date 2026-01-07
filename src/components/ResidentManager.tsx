@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Filter, MoreVertical, MapPin, Briefcase, Calendar, ChevronRight, X } from 'lucide-react';
 import { Household, Resident, Gender, ResidentStatus } from '@/types';
+import { api } from '@/services/api';
 
 interface ResidentManagerProps {
   households: Household[];
@@ -12,51 +13,56 @@ const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseh
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const allResidents = households.flatMap(h => h.members);
-  
-  const filteredResidents = allResidents.filter(r => 
+  const allResidents = households.flatMap(h => h.members || []);
+
+  const filteredResidents = allResidents.filter(r =>
     r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     r.idCardNumber?.includes(searchTerm)
   );
 
-  const handleAddResident = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddResident = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const householdId = formData.get('householdId') as string;
-    
-    const newResident: Resident = {
-      id: `R${Date.now()}`,
-      fullName: formData.get('fullName') as string,
-      dob: formData.get('dob') as string,
-      gender: formData.get('gender') as Gender,
-      birthPlace: formData.get('birthPlace') as string,
-      origin: formData.get('origin') as string,
-      ethnicity: formData.get('ethnicity') as string,
-      job: formData.get('job') as string,
-      idCardNumber: formData.get('idCardNumber') as string,
-      registrationDate: new Date().toISOString().split('T')[0],
-      relationToHead: formData.get('relationToHead') as string,
-      status: ResidentStatus.ACTIVE,
-      householdId: householdId
-    };
 
-    setHouseholds(prev => prev.map(h => {
-      if (h.id === householdId) {
-        return {
-          ...h,
-          members: [...h.members, newResident],
-          history: [...h.history, {
-            id: `HIST${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            content: `Thêm nhân khẩu mới: ${newResident.fullName}`
-          }]
-        };
-      }
-      return h;
-    }));
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    setIsAddModalOpen(false);
+      const residentData = {
+        householdId: householdId,
+        fullName: formData.get('fullName') as string,
+        dob: formData.get('dob') as string,
+        gender: formData.get('gender') as Gender,
+        birthPlace: formData.get('birthPlace') as string || '',
+        origin: formData.get('origin') as string || '',
+        ethnicity: formData.get('ethnicity') as string || 'Kinh',
+        job: formData.get('job') as string || '',
+        idCardNumber: formData.get('idCardNumber') as string || '',
+        relationToHead: formData.get('relationToHead') as string,
+      };
+
+      // Gọi API tạo mới cư dân
+      await api.createResident(residentData);
+
+      // Refresh lại danh sách hộ khẩu từ API (để cập nhật danh sách members)
+      const updatedHouseholds = await api.getHouseholds();
+      setHouseholds(updatedHouseholds);
+
+      setIsAddModalOpen(false);
+      // Reset form
+      (e.target as HTMLFormElement).reset();
+      alert('Thêm nhân khẩu thành công!');
+    } catch (err) {
+      console.error('Lỗi thêm nhân khẩu:', err);
+      setError('Có lỗi xảy ra khi thêm nhân khẩu. Vui lòng thử lại.');
+      alert('Lỗi: Có lỗi xảy ra khi thêm nhân khẩu.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,9 +71,9 @@ const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseh
         <div className="flex flex-1 w-full gap-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Tìm theo tên, số CCCD..." 
+            <input
+              type="text"
+              placeholder="Tìm theo tên, số CCCD..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -77,7 +83,7 @@ const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseh
             <Filter className="w-5 h-5" />
           </button>
         </div>
-        <button 
+        <button
           onClick={() => setIsAddModalOpen(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-lg shadow-blue-600/20"
         >
@@ -88,8 +94,8 @@ const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseh
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredResidents.map(r => (
-          <div 
-            key={r.id} 
+          <div
+            key={r.id}
             className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all duration-300 cursor-pointer"
             onClick={() => setSelectedResident(r)}
           >
@@ -103,13 +109,12 @@ const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseh
                   <p className="text-sm text-slate-500">{r.relationToHead}</p>
                 </div>
               </div>
-              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${
-                r.status === ResidentStatus.ACTIVE ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'
-              }`}>
+              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${r.status === ResidentStatus.ACTIVE ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'
+                }`}>
                 {r.status}
               </span>
             </div>
-            
+
             <div className="space-y-2 mb-4">
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Calendar className="w-4 h-4 text-slate-400" />
