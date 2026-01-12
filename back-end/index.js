@@ -39,7 +39,7 @@ import PaymentRoutes from "./src/routes/PaymentRoutes.js";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Cấu hình Swagger
 const swaggerOptions = {

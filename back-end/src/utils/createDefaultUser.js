@@ -1,29 +1,53 @@
 import bcrypt from "bcrypt";
-import { defaultUser } from "../config/defaultUser.js";
 import User from "../models/User.js";
 
 export const createDefaultUser = async () => {
   try {
-    // Kiểm tra xem người dùng admin đã tồn tại chưa
-    const existingUser = await User.findOne({
-      where: { Username: defaultUser.Username },
-    });
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash("123", saltRounds);
 
-    if (!existingUser) {
-      // Mã hóa mật khẩu
-      const hashedPassword = await bcrypt.hash(defaultUser.Password, 10);
-
-      // Tạo người dùng mới
-      await User.create({
-        ...defaultUser,
+    const usersToCreate = [
+      {
+        Username: "admin",
         Password: hashedPassword,
-      });
+        FullName: "Nguyễn Văn A (Tổ Trưởng)",
+        Email: "admin@gmail.com",
+        PhoneNumber: "0900000001",
+        Role: "Tổ trưởng",
+      },
+      {
+        Username: "canbo",
+        Password: hashedPassword,
+        FullName: "Trần Văn B (Cán Bộ)",
+        Email: "canbo@gmail.com",
+        PhoneNumber: "0900000002",
+        Role: "Cán bộ hành chính", // Map với quyền quản lý hộ khẩu/nhân khẩu
+      },
+      {
+        Username: "ketoan",
+        Password: hashedPassword,
+        FullName: "Lê Thị C (Kế Toán)",
+        Email: "ketoan@gmail.com",
+        PhoneNumber: "0900000003",
+        Role: "Thủ quỹ", // Map với quyền thu phí
+      }
+    ];
 
-      console.log("Default admin user created successfully");
-    } else {
-      console.log("Default admin user already exists");
+    for (const u of usersToCreate) {
+      const existingUser = await User.findOne({ where: { Username: u.Username } });
+      if (!existingUser) {
+        await User.create(u);
+        console.log(`✅ Đã tạo tài khoản mặc định: ${u.Username}`);
+      } else {
+        // Nếu user đã tồn tại nhưng sai pass hoặc role, update lại
+        await existingUser.update({
+          Password: u.Password,
+          Role: u.Role
+        });
+        console.log(`ℹ️ Tài khoản ${u.Username} đã tồn tại (đã cập nhật lại pass/role).`);
+      }
     }
   } catch (error) {
-    console.error("Error creating default user:", error);
+    console.error("❌ Lỗi tạo người dùng mặc định:", error);
   }
 };
