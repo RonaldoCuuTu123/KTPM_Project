@@ -4,34 +4,39 @@ import FeeCollection from "./FeeCollection.js";
 import Household from "./Household.js";
 
 const FeeDetail = sequelize.define("FeeDetail", {
-  FeeDetailID: { 
-    type: DataTypes.INTEGER, 
-    primaryKey: true, 
-    autoIncrement: true 
+  FeeDetailID: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  CollectionID: { 
-    type: DataTypes.INTEGER, 
-    references: { model: FeeCollection, key: "CollectionID" } 
+  CollectionID: {
+    type: DataTypes.INTEGER,
+    references: { model: FeeCollection, key: "CollectionID" }
   },
-  HouseholdID: { 
-    type: DataTypes.INTEGER, 
-    references: { model: Household, key: "HouseholdID" } 
+  HouseholdID: {
+    type: DataTypes.INTEGER,
+    references: { model: Household, key: "HouseholdID" }
   },
-  Amount: { 
-    type: DataTypes.DECIMAL(10, 2), 
+  Amount: {
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: true
   },
-  PaymentDate: { 
-    type: DataTypes.DATEONLY 
+  PaymentDate: {
+    type: DataTypes.DATEONLY
   },
-  PaymentMethod: { 
+  PaymentMethod: {
     type: DataTypes.ENUM('Tiền mặt', 'Chuyển khoản'),
-    allowNull: false 
+    allowNull: false
   },
-  PaymentStatus: { 
-    type: DataTypes.ENUM('Chưa đóng', 'Đã đóng'), 
-    allowNull: false 
+  PaymentStatus: {
+    type: DataTypes.ENUM('Chưa đóng', 'Đã đóng'),
+    allowNull: false
   },
+  CollectorName: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Tên người thu phí'
+  }
 }, {
   tableName: "FeeDetails",
   timestamps: false

@@ -3,37 +3,42 @@ import sequelize from "../config/dbsetup.js";
 import FeeType from "./FeeType.js";
 
 const FeeCollection = sequelize.define("FeeCollection", {
-  CollectionID: { 
-    type: DataTypes.INTEGER, 
-    primaryKey: true, 
-    autoIncrement: true 
+  CollectionID: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  FeeTypeID: { 
-    type: DataTypes.INTEGER, 
+  FeeTypeID: {
+    type: DataTypes.INTEGER,
     allowNull: false,
-    references: { model: FeeType, key: "FeeTypeID" } 
+    references: { model: FeeType, key: "FeeTypeID" }
   },
-  CollectionName: { 
-    type: DataTypes.STRING(100), 
-    allowNull: false 
+  CollectionName: {
+    type: DataTypes.STRING(100),
+    allowNull: false
   },
-  StartDate: { 
-    type: DataTypes.DATEONLY, 
-    allowNull: false 
+  StartDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
   },
-  EndDate: { 
-    type: DataTypes.DATEONLY 
+  EndDate: {
+    type: DataTypes.DATEONLY
   },
-  TotalAmount: { 
-    type: DataTypes.DECIMAL(15, 2), 
+  TotalAmount: {
+    type: DataTypes.DECIMAL(15, 2),
     allowNull: true
   },
-  Status: { 
-    type: DataTypes.ENUM('Đang thu', 'Hoàn thành', 'Kết thúc'), 
-    allowNull: false 
+  AmountPerMonth: {
+    type: DataTypes.DECIMAL(15, 2),
+    allowNull: true,
+    comment: 'Số tiền mỗi tháng (dùng cho phí bắt buộc tính theo người)'
   },
-  Notes: { 
-    type: DataTypes.TEXT 
+  Status: {
+    type: DataTypes.ENUM('Đang thu', 'Hoàn thành', 'Kết thúc'),
+    allowNull: false
+  },
+  Notes: {
+    type: DataTypes.TEXT
   }
 }, {
   tableName: "FeeCollections",

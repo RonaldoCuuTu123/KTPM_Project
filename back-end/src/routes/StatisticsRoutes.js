@@ -12,6 +12,18 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/statistics/dashboard:
+ *   get:
+ *     summary: Lấy thống kê dashboard (tổng hộ, cư dân, phí thu được)
+ *     tags: [Statistics]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ */
+router.get('/dashboard', statisticsController.getDashboardStats);
+
+/**
+ * @swagger
  * /api/statistics/by-gender:
  *   get:
  *     summary: Thống kê theo giới tính

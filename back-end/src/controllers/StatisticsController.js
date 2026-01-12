@@ -1,5 +1,45 @@
 import sequelize from '../config/dbsetup.js';
 import { QueryTypes } from 'sequelize';
+import Household from '../models/Household.js';
+import Resident from '../models/Resident.js';
+import FeeDetail from '../models/FeeDetail.js';
+
+// Dashboard statistics
+export const getDashboardStats = async (req, res) => {
+    try {
+        // Total households
+        const totalHouseholds = await Household.count();
+
+        // Total residents
+        const totalResidents = await Resident.count({
+            where: { ResidencyStatus: ['Thường trú', 'Tạm trú'] }
+        });
+
+        // Total collected fees
+        const totalCollected = await FeeDetail.sum('Amount', {
+            where: { PaymentStatus: 'Đã đóng' }
+        });
+
+        // Households paid
+        const householdsPaid = await sequelize.query(
+            `SELECT COUNT(DISTINCT HouseholdID) as count FROM FeeDetails WHERE PaymentStatus = 'Đã đóng'`,
+            { type: QueryTypes.SELECT }
+        );
+
+        res.status(200).json({
+            error: false,
+            stats: {
+                totalHouseholds,
+                totalResidents,
+                totalCollected: totalCollected || 0,
+                householdsPaid: householdsPaid[0].count || 0
+            }
+        });
+    } catch (error) {
+        console.error('Error getting dashboard stats:', error);
+        res.status(500).json({ error: true, message: 'Error getting statistics', details: error.message });
+    }
+};
 
 // Thống kê nhân khẩu theo giới tính
 export const getResidentsByGender = async (req, res) => {

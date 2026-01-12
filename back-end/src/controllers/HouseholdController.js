@@ -7,10 +7,48 @@ import HouseholdHistory from '../models/HouseholdHistory.js';
 // Lấy tất cả hộ gia đình
 export const getAllHouseholds = async (req, res) => {
   try {
-    const households = await householdService.getAllHouseholds();
-    res.status(200).json({ error: false, households });
+    const households = await Household.findAll({
+      include: [
+        {
+          model: Resident,
+          attributes: ['ResidentID', 'FullName', 'Sex', 'DateOfBirth', 'Relationship', 'ResidencyStatus']
+        }
+      ]
+    });
+
+    // Map dữ liệu để FE dễ sử dụng
+    const formattedHouseholds = households.map(h => ({
+      HouseholdID: h.HouseholdID,
+      id: h.HouseholdID,
+      HouseholdNumber: h.HouseholdNumber,
+      householdNumber: h.HouseholdNumber,
+      HouseholdHead: h.HouseholdHead,
+      headName: h.HouseholdHead,
+      Street: h.Street,
+      street: h.Street,
+      Ward: h.Ward,
+      ward: h.Ward,
+      District: h.District,
+      district: h.District,
+      address: `${h.Street}, ${h.Ward}, ${h.District}`,
+      Members: h.Members,
+      members: (h.Residents || []).map(r => ({
+        id: r.ResidentID,
+        ResidentID: r.ResidentID,
+        fullName: r.FullName,
+        gender: r.Sex === 'Nam' ? 'Nam' : 'Nữ',
+        dob: r.DateOfBirth,
+        relationToHead: r.Relationship,
+        status: r.ResidencyStatus
+      })),
+      HasVehicle: h.HasVehicle,
+      Notes: h.Notes
+    }));
+
+    res.status(200).json(formattedHouseholds);
   } catch (error) {
-    res.status(500).json({ error: true, message: 'Error retrieving households', error });
+    console.error('Error retrieving households:', error);
+    res.status(500).json({ error: true, message: 'Error retrieving households', details: error.message });
   }
 };
 
@@ -28,51 +66,165 @@ export const getHouseholdById = async (req, res) => {
 // Thêm hộ gia đình mới
 export const createHousehold = async (req, res) => {
   try {
-    const { HouseholdNumber, Street, Ward, District, HouseholdHead, Members, Notes } = req.body;
+    const {
+      HouseholdNumber,
+      householdNumber,
+      Street,
+      street,
+      Ward,
+      ward,
+      District,
+      district,
+      HouseholdHead,
+      headName,
+      Members,
+      members,
+      Notes
+    } = req.body;
 
-    // ✅ CẬP NHẬT VALIDATION
-    if (!HouseholdNumber || !HouseholdHead || !Members) {
+    // Map camelCase từ FE sang PascalCase cho BE
+    const number = HouseholdNumber || householdNumber;
+    const head = HouseholdHead || headName;
+    const st = Street || street;
+    const wa = Ward || ward;
+    const di = District || district;
+    const mem = Members || members || 0;
+
+    if (!number || !head) {
       return res.status(400).json({
         error: true,
-        message: 'HouseholdNumber (Số nhà), HouseholdHead (Chủ hộ) và Members (Số thành viên) là bắt buộc'
+        message: 'HouseholdNumber và HouseholdHead là bắt buộc'
       });
     }
 
-    const newHousehold = await householdService.createHousehold({
-      HouseholdNumber,
-      Street,
-      Ward,
-      District,
-      HouseholdHead,
-      Members,
-      Notes
+    const newHousehold = await Household.create({
+      HouseholdNumber: number,
+      Street: st || '',
+      Ward: wa || 'La Khê',
+      District: di || 'Hà Đông',
+      HouseholdHead: head,
+      Members: mem,
+      Notes: Notes || ''
     });
 
-    res.status(201).json({ error: false, newHousehold });
+    // Fetch với relations
+    const createdHousehold = await Household.findByPk(newHousehold.HouseholdID, {
+      include: [
+        {
+          model: Resident,
+          attributes: ['ResidentID', 'FullName', 'Sex', 'DateOfBirth', 'Relationship', 'ResidencyStatus']
+        }
+      ]
+    });
+
+    const formatted = {
+      HouseholdID: createdHousehold.HouseholdID,
+      id: createdHousehold.HouseholdID,
+      HouseholdNumber: createdHousehold.HouseholdNumber,
+      householdNumber: createdHousehold.HouseholdNumber,
+      HouseholdHead: createdHousehold.HouseholdHead,
+      headName: createdHousehold.HouseholdHead,
+      Street: createdHousehold.Street,
+      street: createdHousehold.Street,
+      Ward: createdHousehold.Ward,
+      ward: createdHousehold.Ward,
+      District: createdHousehold.District,
+      district: createdHousehold.District,
+      address: `${createdHousehold.Street}, ${createdHousehold.Ward}, ${createdHousehold.District}`,
+      Members: createdHousehold.Members,
+      members: [],
+      HasVehicle: createdHousehold.HasVehicle,
+      Notes: createdHousehold.Notes
+    };
+
+    res.status(201).json(formatted);
   } catch (error) {
-    res.status(500).json({ error: true, message: 'Error creating household', error });
+    console.error('Error creating household:', error);
+    res.status(500).json({ error: true, message: 'Error creating household', details: error.message });
   }
 };
 
 // Cập nhật thông tin hộ gia đình
 export const updateHousehold = async (req, res) => {
   try {
-    const updatedHousehold = await householdService.updateHousehold(req.params.id, req.body);
-    if (!updatedHousehold) return res.status(404).json({ error: true, message: 'Household not found' });
-    res.status(200).json({ error: false, message: "Update successfully", updatedHousehold });
+    const { id } = req.params;
+    const household = await Household.findByPk(id);
+
+    if (!household) return res.status(404).json({ error: true, message: 'Household not found' });
+
+    // Map and update fields
+    const updates = {
+      HouseholdNumber: req.body.HouseholdNumber || req.body.householdNumber,
+      HouseholdHead: req.body.HouseholdHead || req.body.headName,
+      Street: req.body.Street || req.body.street,
+      Ward: req.body.Ward || req.body.ward,
+      District: req.body.District || req.body.district,
+      Members: req.body.Members || req.body.members,
+      HasVehicle: req.body.HasVehicle !== undefined ? req.body.HasVehicle : req.body.hasVehicle,
+      Notes: req.body.Notes
+    };
+
+    // Remove undefined values
+    Object.keys(updates).forEach(key => updates[key] === undefined && delete updates[key]);
+
+    await household.update(updates);
+    const updated = await Household.findByPk(id, {
+      include: [
+        {
+          model: Resident,
+          attributes: ['ResidentID', 'FullName', 'Sex', 'DateOfBirth', 'Relationship', 'ResidencyStatus']
+        }
+      ]
+    });
+
+    const formatted = {
+      HouseholdID: updated.HouseholdID,
+      id: updated.HouseholdID,
+      HouseholdNumber: updated.HouseholdNumber,
+      householdNumber: updated.HouseholdNumber,
+      HouseholdHead: updated.HouseholdHead,
+      headName: updated.HouseholdHead,
+      Street: updated.Street,
+      street: updated.Street,
+      Ward: updated.Ward,
+      ward: updated.Ward,
+      District: updated.District,
+      district: updated.District,
+      address: `${updated.Street}, ${updated.Ward}, ${updated.District}`,
+      Members: updated.Members,
+      members: (updated.Residents || []).map(r => ({
+        id: r.ResidentID,
+        ResidentID: r.ResidentID,
+        fullName: r.FullName,
+        gender: r.Sex === 'Nam' ? 'Nam' : 'Nữ',
+        dob: r.DateOfBirth,
+        relationToHead: r.Relationship,
+        status: r.ResidencyStatus
+      })),
+      HasVehicle: updated.HasVehicle,
+      Notes: updated.Notes
+    };
+
+    res.status(200).json(formatted);
   } catch (error) {
-    res.status(500).json({ error: true, message: 'Error updating household', error });
+    console.error('Error updating household:', error);
+    res.status(500).json({ error: true, message: 'Error updating household', details: error.message });
   }
 };
 
 // Xóa hộ gia đình
 export const deleteHousehold = async (req, res) => {
   try {
-    const result = await householdService.deleteHousehold(req.params.id);
-    if (!result) return res.status(404).json({ message: 'Household not found' });
+    const { id } = req.params;
+    const household = await Household.findByPk(id);
+
+    if (!household) return res.status(404).json({ error: true, message: 'Household not found' });
+
+    await household.destroy();
     res.status(200).json({ error: false, message: 'Household deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: true, message: 'Error deleting household', error });
+    console.error('Error deleting household:', error);
+    res.status(500).json({ error: true, message: 'Error deleting household', details: error.message });
   }
 };
 

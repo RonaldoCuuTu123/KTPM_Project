@@ -1088,3 +1088,5 @@ SELECT
 FROM information_schema.TRIGGERS
 WHERE
     TRIGGER_SCHEMA = 'Quan_ly_thu_phi';
+
+DELETE FROM Users WHERE Username = 'admin1234';

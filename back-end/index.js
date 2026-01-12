@@ -34,6 +34,7 @@ import HouseholdHistoryRoutes from "./src/routes/HouseholdHistoryRoutes.js";
 import TemporaryAbsenceRoutes from "./src/routes/TemporaryAbsenceRoutes.js";
 import TemporaryResidenceRoutes from "./src/routes/TemporaryResidenceRoutes.js";
 import StatisticsRoutes from "./src/routes/StatisticsRoutes.js";
+import PaymentRoutes from "./src/routes/PaymentRoutes.js";
 
 dotenv.config();
 
@@ -127,6 +128,7 @@ app.use("/api/household-history", HouseholdHistoryRoutes);
 app.use("/api/temporary-absence", TemporaryAbsenceRoutes);
 app.use("/api/temporary-residence", TemporaryResidenceRoutes);
 app.use("/api/statistics", StatisticsRoutes);
+app.use("/api/payment", PaymentRoutes);
 
 // ============================================
 // ERROR HANDLERS
