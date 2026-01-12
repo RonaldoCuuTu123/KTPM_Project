@@ -36,8 +36,8 @@ mysql -u root -padmin Quan_ly_thu_phi < database/migration_01_add_payment_fields
 ```bash
 npm install  # if needed
 npm run dev
-# Server: http://localhost:3000
-# Docs:   http://localhost:3000/api-docs
+# Server: http://localhost:3001
+# Docs:   http://localhost:3001/api-docs
 ```
 
 ### 3️⃣ Verify Installation
@@ -48,7 +48,7 @@ bash test_api.sh
 ```
 
 ### 4️⃣ Connect Frontend
-- Set frontend API URL to `http://localhost:3000/api`
+- Set frontend API URL to `http://localhost:3001/api`
 - Start frontend: `npm run dev`
 
 ---
@@ -126,7 +126,7 @@ Responses always include **both formats** for maximum compatibility.
 
 ### Create a Household
 ```bash
-curl -X POST http://localhost:3000/api/households/create-household \
+curl -X POST http://localhost:3001/api/households/create-household \
   -H "Content-Type: application/json" \
   -d '{
     "householdNumber": "101",
@@ -139,7 +139,7 @@ curl -X POST http://localhost:3000/api/households/create-household \
 
 ### Create a Resident
 ```bash
-curl -X POST http://localhost:3000/api/residents/create-resident \
+curl -X POST http://localhost:3001/api/residents/create-resident \
   -H "Content-Type: application/json" \
   -d '{
     "householdId": 1,
@@ -152,7 +152,7 @@ curl -X POST http://localhost:3000/api/residents/create-resident \
 
 ### Record a Payment
 ```bash
-curl -X POST http://localhost:3000/api/payment/create-payment \
+curl -X POST http://localhost:3001/api/payment/create-payment \
   -H "Content-Type: application/json" \
   -d '{
     "householdId": 1,
@@ -178,7 +178,7 @@ JWT_SECRET=key_123
 ```
 
 ### Port Configuration
-- Default: **3000**
+- Default: **3001**
 - Change in: `.env` file (add `PORT=` variable)
 
 ### CORS Settings
@@ -219,14 +219,14 @@ bash test_api.sh
 
 ### Method 2: Swagger UI
 ```
-http://localhost:3000/api-docs
+http://localhost:3001/api-docs
 # Interactive API exploration
 ```
 
 ### Method 3: Manual Testing
 ```bash
 # Test specific endpoint
-curl http://localhost:3000/api/households/get-all-households
+curl http://localhost:3001/api/households/get-all-households
 ```
 
 ### Method 4: Verification Script
@@ -242,7 +242,7 @@ bash verify_installation.sh
 ### Problem: Server won't start
 ```bash
 # Check if port is in use
-lsof -i :3000
+lsof -i :3001
 # Kill process if needed
 kill -9 <PID>
 # Try again
@@ -405,7 +405,7 @@ Everything is configured and ready to go. Your backend and frontend are now full
 ```
 npm run dev
 ↓
-Server starts on http://localhost:3000
+Server starts on http://localhost:3001
 ↓
 All endpoints ready
 ↓
