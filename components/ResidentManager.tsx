@@ -1,301 +1,616 @@
-
 import React, { useState } from 'react';
-import { 
-  Search, 
-  UserPlus, 
-  Filter, 
-  MapPin, 
-  Briefcase, 
-  Calendar, 
-  ChevronRight, 
-  X, 
-  Info, 
-  Fingerprint, 
-  Link2,
-  User
-} from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Search, Users, Filter } from 'lucide-react';
 import { Household, Resident, Gender, ResidentStatus } from '../types';
 
 interface ResidentManagerProps {
   households: Household[];
-  setHouseholds: React.Dispatch<React.SetStateAction<Household[]>>;
+  setHouseholds: (households: Household[]) => void;
+  apiRequest?: (endpoint: string, options?: RequestInit) => Promise<any>;
+  reloadData?: () => Promise<void>;
+  isOnline?: boolean;
 }
 
-const ResidentManager: React.FC<ResidentManagerProps> = ({ households, setHouseholds }) => {
+const ResidentManager: React.FC<ResidentManagerProps> = ({
+  households,
+  setHouseholds,
+  apiRequest,
+  reloadData,
+  isOnline = false
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
+  const [filterStatus, setFilterStatus] = useState<ResidentStatus | 'ALL'>('ALL');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingResident, setEditingResident] = useState<Resident | null>(null);
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState('');
 
-  const allResidents = households.flatMap(h => h.members);
-  
-  const filteredResidents = allResidents.filter(r => 
-    r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.idCardNumber?.includes(searchTerm)
+  const [formData, setFormData] = useState<Partial<Resident>>({
+    fullName: '',
+    dob: '',
+    gender: Gender.MALE,
+    birthPlace: '',
+    origin: '',
+    ethnicity: 'Kinh',
+    job: '',
+    workPlace: '',
+    idCardNumber: '',
+    idCardDate: '',
+    idCardPlace: '',
+    registrationDate: new Date().toISOString().split('T')[0],
+    relationToHead: '',
+    status: ResidentStatus.ACTIVE,
+    notes: ''
+  });
+
+  // Lấy tất cả nhân khẩu từ các hộ
+  const allResidents = households.flatMap(h =>
+    (h.members || []).map(m => ({
+      ...m,
+      householdId: h.id,
+      householdNumber: h.householdNumber,
+      headName: h.headName,
+      address: `${h.address}, ${h.street}`
+    }))
   );
 
-  const handleAddResident = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const householdId = formData.get('householdId') as string;
-    const status = formData.get('status') as ResidentStatus;
-    
-    const newResident: Resident = {
-      id: `R${Date.now()}`,
-      fullName: formData.get('fullName') as string,
-      dob: formData.get('dob') as string,
-      gender: formData.get('gender') as Gender,
-      birthPlace: formData.get('birthPlace') as string,
-      origin: formData.get('origin') as string,
-      ethnicity: formData.get('ethnicity') as string,
-      job: formData.get('job') as string,
-      idCardNumber: formData.get('idCardNumber') as string,
-      registrationDate: new Date().toISOString().split('T')[0],
-      relationToHead: formData.get('relationToHead') as string,
-      status: status,
-      notes: formData.get('notes') as string,
-      householdId: householdId
-    };
+  // Lọc nhân khẩu
+  const filteredResidents = allResidents.filter(r => {
+    const matchSearch = r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.idCardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.householdNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStatus = filterStatus === 'ALL' || r.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
-    setHouseholds(prev => prev.map(h => {
-      if (h.id === householdId) {
-        return {
-          ...h,
-          members: [...h.members, newResident],
-          history: [...h.history, {
-            id: `HIST${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            content: `Khai báo ${status.toLowerCase()}: ${newResident.fullName}`
-          }]
+  const handleSave = async () => {
+    try {
+      if (!formData.fullName || !formData.dob || !selectedHouseholdId) {
+        alert('Vui lòng điền đầy đủ thông tin bắt buộc!');
+        return;
+      }
+
+      const targetHousehold = households.find(h => h.id === selectedHouseholdId);
+      if (!targetHousehold) {
+        alert('Không tìm thấy hộ khẩu!');
+        return;
+      }
+
+      let updatedHousehold: Household;
+
+      if (editingResident) {
+        // Cập nhật nhân khẩu
+        updatedHousehold = {
+          ...targetHousehold,
+          members: targetHousehold.members.map(m =>
+            m.id === editingResident.id ? { ...formData, id: m.id, householdId: selectedHouseholdId } as Resident : m
+          )
+        };
+      } else {
+        // Thêm nhân khẩu mới
+        const newResident: Resident = {
+          ...formData as Resident,
+          id: `R${Date.now()}`,
+          householdId: selectedHouseholdId
+        };
+        updatedHousehold = {
+          ...targetHousehold,
+          members: [...(targetHousehold.members || []), newResident]
         };
       }
-      return h;
-    }));
 
-    setIsAddModalOpen(false);
+      if (isOnline && apiRequest) {
+        // Gọi API cập nhật hộ khẩu
+        await apiRequest(`/households/${selectedHouseholdId}`, {
+          method: 'PUT',
+          body: JSON.stringify(updatedHousehold)
+        });
+
+        if (reloadData) await reloadData();
+        alert('✅ Đã lưu nhân khẩu vào database!');
+      } else {
+        // Offline mode
+        setHouseholds(households.map(h => h.id === selectedHouseholdId ? updatedHousehold : h));
+        alert('⚠️ Chế độ offline: Dữ liệu chỉ lưu tạm thời!');
+      }
+
+      closeModal();
+    } catch (error) {
+      console.error('Error saving resident:', error);
+      alert('❌ Lỗi khi lưu: ' + (error as Error).message);
+    }
+  };
+
+  const handleDelete = async (resident: any) => {
+    if (!confirm(`Bạn có chắc muốn xóa nhân khẩu "${resident.fullName}"?`)) return;
+
+    try {
+      const targetHousehold = households.find(h => h.id === resident.householdId);
+      if (!targetHousehold) return;
+
+      const updatedHousehold = {
+        ...targetHousehold,
+        members: targetHousehold.members.filter(m => m.id !== resident.id)
+      };
+
+      if (isOnline && apiRequest) {
+        await apiRequest(`/households/${resident.householdId}`, {
+          method: 'PUT',
+          body: JSON.stringify(updatedHousehold)
+        });
+
+        if (reloadData) await reloadData();
+        alert('✅ Đã xóa khỏi database!');
+      } else {
+        setHouseholds(households.map(h => h.id === resident.householdId ? updatedHousehold : h));
+        alert('⚠️ Chế độ offline: Dữ liệu chỉ xóa tạm thời!');
+      }
+    } catch (error) {
+      console.error('Error deleting resident:', error);
+      alert('❌ Lỗi khi xóa: ' + (error as Error).message);
+    }
+  };
+
+  const handleEdit = (resident: any) => {
+    setEditingResident(resident);
+    setSelectedHouseholdId(resident.householdId);
+    setFormData({
+      fullName: resident.fullName,
+      alias: resident.alias,
+      dob: resident.dob,
+      gender: resident.gender,
+      birthPlace: resident.birthPlace,
+      origin: resident.origin,
+      ethnicity: resident.ethnicity,
+      job: resident.job,
+      workPlace: resident.workPlace,
+      idCardNumber: resident.idCardNumber,
+      idCardDate: resident.idCardDate,
+      idCardPlace: resident.idCardPlace,
+      registrationDate: resident.registrationDate,
+      previousAddress: resident.previousAddress,
+      relationToHead: resident.relationToHead,
+      status: resident.status,
+      notes: resident.notes,
+      moveDate: resident.moveDate,
+      moveDestination: resident.moveDestination
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingResident(null);
+    setSelectedHouseholdId('');
+    setFormData({
+      fullName: '',
+      dob: '',
+      gender: Gender.MALE,
+      birthPlace: '',
+      origin: '',
+      ethnicity: 'Kinh',
+      job: '',
+      workPlace: '',
+      idCardNumber: '',
+      idCardDate: '',
+      idCardPlace: '',
+      registrationDate: new Date().toISOString().split('T')[0],
+      relationToHead: '',
+      status: ResidentStatus.ACTIVE,
+      notes: ''
+    });
+  };
+
+  const getStatusColor = (status: ResidentStatus) => {
+    switch (status) {
+      case ResidentStatus.ACTIVE:
+        return 'bg-green-100 text-green-700 border-green-200';
+      case ResidentStatus.TEMPORARY_RESIDENT:
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case ResidentStatus.TEMPORARY_ABSENT:
+        return 'bg-orange-100 text-orange-700 border-orange-200';
+      case ResidentStatus.MOVED:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      case ResidentStatus.DECEASED:
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div className="flex flex-1 w-full gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Tìm theo tên, số CCCD..." 
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition-colors shadow-sm bg-white">
-            <Filter className="w-5 h-5" />
-          </button>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Quản lý Nhân khẩu</h2>
+          <p className="text-slate-500">Tổng số: {allResidents.length} người</p>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+        <button
+          onClick={() => {
+            setEditingResident(null);
+            setSelectedHouseholdId('');
+            setFormData({
+              fullName: '',
+              dob: '',
+              gender: Gender.MALE,
+              birthPlace: '',
+              origin: '',
+              ethnicity: 'Kinh',
+              job: '',
+              workPlace: '',
+              idCardNumber: '',
+              idCardDate: '',
+              idCardPlace: '',
+              registrationDate: new Date().toISOString().split('T')[0],
+              relationToHead: '',
+              status: ResidentStatus.ACTIVE,
+              notes: ''
+            });
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30"
         >
-          <UserPlus className="w-5 h-5" />
-          Khai báo mới
+          <Plus className="w-5 h-5" />
+          Thêm nhân khẩu
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredResidents.map(r => (
-          <div 
-            key={r.id} 
-            className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 cursor-pointer"
-            onClick={() => setSelectedResident(r)}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-inner ${r.gender === Gender.MALE ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
-                  {r.fullName.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{r.fullName}</h4>
-                  <p className="text-sm text-slate-500 font-medium">{r.relationToHead}</p>
-                </div>
-              </div>
-              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border shadow-sm ${
-                r.status === ResidentStatus.ACTIVE 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                  : r.status === ResidentStatus.TEMPORARY_RESIDENT
-                  ? 'bg-blue-50 text-blue-700 border-blue-100'
-                  : 'bg-amber-50 text-amber-700 border-amber-100'
-              }`}>
-                {r.status}
-              </span>
-            </div>
-            
-            <div className="space-y-3 mb-5">
-              <div className="flex items-center gap-2.5 text-sm text-slate-600">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                <span className="font-medium">{r.dob}</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-sm text-slate-600">
-                <MapPin className="w-4 h-4 text-slate-400" />
-                <span className="truncate">Quê quán: {r.origin}</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-sm text-slate-600">
-                <Briefcase className="w-4 h-4 text-slate-400" />
-                <span className="truncate">{r.job || 'Chưa cập nhật nghề nghiệp'}</span>
-              </div>
-            </div>
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên, CMND, số hộ khẩu..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-slate-400">
-              <div className="flex items-center gap-1.5">
-                <Link2 className="w-3.5 h-3.5" />
-                Hộ: {households.find(h => h.id === r.householdId)?.householdNumber}
-              </div>
-              <span className="flex items-center gap-1 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">
-                Chi tiết <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </div>
-          </div>
-        ))}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Filter className="w-5 h-5 text-slate-400" />
+          <button
+            onClick={() => setFilterStatus('ALL')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterStatus === 'ALL' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+          >
+            Tất cả ({allResidents.length})
+          </button>
+          <button
+            onClick={() => setFilterStatus(ResidentStatus.ACTIVE)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterStatus === ResidentStatus.ACTIVE ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'
+              }`}
+          >
+            Thường trú ({allResidents.filter(r => r.status === ResidentStatus.ACTIVE).length})
+          </button>
+          <button
+            onClick={() => setFilterStatus(ResidentStatus.TEMPORARY_RESIDENT)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterStatus === ResidentStatus.TEMPORARY_RESIDENT ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+              }`}
+          >
+            Tạm trú ({allResidents.filter(r => r.status === ResidentStatus.TEMPORARY_RESIDENT).length})
+          </button>
+          <button
+            onClick={() => setFilterStatus(ResidentStatus.TEMPORARY_ABSENT)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterStatus === ResidentStatus.TEMPORARY_ABSENT ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+              }`}
+          >
+            Tạm vắng ({allResidents.filter(r => r.status === ResidentStatus.TEMPORARY_ABSENT).length})
+          </button>
+        </div>
       </div>
 
-      {/* Modernized Add Resident Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 duration-300">
-            {/* Header */}
-            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">Khai báo Cư trú</h3>
-                <p className="text-slate-500 text-sm mt-1">Vui lòng điền đầy đủ các thông tin nhân khẩu dưới đây.</p>
+      {/* List */}
+      <div className="grid gap-4">
+        {filteredResidents.length === 0 ? (
+          <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
+            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">Không tìm thấy nhân khẩu nào</p>
+          </div>
+        ) : (
+          filteredResidents.map((resident) => (
+            <div key={resident.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-lg font-bold text-blue-600">
+                      {resident.fullName.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">{resident.fullName}</h3>
+                      <p className="text-sm text-slate-500">{resident.relationToHead}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(resident.status)}`}>
+                      {resident.status}
+                    </span>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <span className="text-slate-500">Hộ khẩu:</span>
+                      <p className="font-medium text-slate-800">{resident.headName} ({resident.householdNumber})</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Ngày sinh:</span>
+                      <p className="font-medium text-slate-800">{new Date(resident.dob).toLocaleDateString('vi-VN')}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Giới tính:</span>
+                      <p className="font-medium text-slate-800">{resident.gender}</p>
+                    </div>
+                    {resident.idCardNumber && (
+                      <div>
+                        <span className="text-slate-500">CMND/CCCD:</span>
+                        <p className="font-medium text-slate-800">{resident.idCardNumber}</p>
+                      </div>
+                    )}
+                    {resident.job && (
+                      <div>
+                        <span className="text-slate-500">Nghề nghiệp:</span>
+                        <p className="font-medium text-slate-800">{resident.job}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-slate-500">Địa chỉ:</span>
+                      <p className="font-medium text-slate-800">{resident.address}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(resident)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(resident)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-400 hover:text-slate-600">
-                <X className="w-6 h-6" />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full my-8">
+            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-slate-800">
+                {editingResident ? 'Chỉnh sửa nhân khẩu' : 'Thêm nhân khẩu mới'}
+              </h3>
+              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-lg">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Form Content */}
-            <form onSubmit={handleAddResident} className="flex-1 overflow-y-auto max-h-[75vh]">
-              <div className="p-8 space-y-8">
-                
-                {/* Section 1: Household Context */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <div className="p-1.5 bg-blue-50 rounded-lg">
-                      <Link2 className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">Thông tin định danh hộ khẩu</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Thuộc hộ gia đình <span className="text-rose-500">*</span></label>
-                      <select name="householdId" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium">
-                        <option value="">-- Chọn hộ khẩu --</option>
-                        {households.map(h => (
-                          <option key={h.id} value={h.id}>{h.householdNumber} - {h.headName}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Loại hình cư trú <span className="text-rose-500">*</span></label>
-                      <select name="status" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium">
-                        <option value={ResidentStatus.ACTIVE}>Thường trú</option>
-                        <option value={ResidentStatus.TEMPORARY_RESIDENT}>Tạm trú</option>
-                        <option value={ResidentStatus.TEMPORARY_ABSENT}>Tạm vắng</option>
-                      </select>
-                    </div>
-                  </div>
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Chọn hộ khẩu */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Hộ khẩu <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedHouseholdId}
+                  onChange={(e) => setSelectedHouseholdId(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={!!editingResident}
+                >
+                  <option value="">Chọn hộ khẩu</option>
+                  {households.map(h => (
+                    <option key={h.id} value={h.id}>
+                      {h.headName} - {h.householdNumber} ({h.address}, {h.street})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Thông tin cơ bản */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Họ và tên <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nguyễn Văn A"
+                  />
                 </div>
 
-                <div className="h-px bg-slate-100"></div>
-
-                {/* Section 2: Personal Details */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <div className="p-1.5 bg-blue-50 rounded-lg">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">Thông tin cá nhân</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Họ và tên <span className="text-rose-500">*</span></label>
-                      <input name="fullName" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="Ví dụ: Nguyễn Văn A" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 ml-1">Ngày sinh <span className="text-rose-500">*</span></label>
-                        <input name="dob" type="date" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 ml-1">Giới tính <span className="text-rose-500">*</span></label>
-                        <select name="gender" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium">
-                          <option value={Gender.MALE}>Nam</option>
-                          <option value={Gender.FEMALE}>Nữ</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Quan hệ với chủ hộ <span className="text-rose-500">*</span></label>
-                      <input name="relationToHead" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="Con, Vợ, Chồng..." />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Dân tộc</label>
-                      <input name="ethnicity" defaultValue="Kinh" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" />
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tên khác (Bí danh)</label>
+                  <input
+                    type="text"
+                    value={formData.alias || ''}
+                    onChange={(e) => setFormData({ ...formData, alias: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
-                <div className="h-px bg-slate-100"></div>
-
-                {/* Section 3: Identity & Background */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <div className="p-1.5 bg-blue-50 rounded-lg">
-                      <Fingerprint className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">Định danh & Nghề nghiệp</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Số CCCD/CMND</label>
-                      <input name="idCardNumber" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="001..." />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Nghề nghiệp</label>
-                      <input name="job" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="Kỹ sư, Sinh viên..." />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Nguyên quán</label>
-                      <input name="origin" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="Xã, Huyện, Tỉnh" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700 ml-1">Nơi sinh</label>
-                      <input name="birthPlace" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" placeholder="Bệnh viện Phụ sản..." />
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Ngày sinh <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dob}
+                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
-                {/* Section 4: Notes */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <div className="p-1.5 bg-blue-50 rounded-lg">
-                      <Info className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">Ghi chú bổ sung</span>
-                  </div>
-                  <textarea name="notes" rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none" placeholder="Lý do tạm vắng/tạm trú, thời hạn dự kiến..."></textarea>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Giới tính</label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={Gender.MALE}>Nam</option>
+                    <option value={Gender.FEMALE}>Nữ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nơi sinh</label>
+                  <input
+                    type="text"
+                    value={formData.birthPlace}
+                    onChange={(e) => setFormData({ ...formData, birthPlace: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Hà Nội"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nguyên quán</label>
+                  <input
+                    type="text"
+                    value={formData.origin}
+                    onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nam Định"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Dân tộc</label>
+                  <input
+                    type="text"
+                    value={formData.ethnicity}
+                    onChange={(e) => setFormData({ ...formData, ethnicity: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Kinh"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nghề nghiệp</label>
+                  <input
+                    type="text"
+                    value={formData.job || ''}
+                    onChange={(e) => setFormData({ ...formData, job: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Kỹ sư"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nơi làm việc</label>
+                  <input
+                    type="text"
+                    value={formData.workPlace || ''}
+                    onChange={(e) => setFormData({ ...formData, workPlace: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Công ty ABC"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Số CMND/CCCD</label>
+                  <input
+                    type="text"
+                    value={formData.idCardNumber || ''}
+                    onChange={(e) => setFormData({ ...formData, idCardNumber: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="001234567890"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Ngày cấp</label>
+                  <input
+                    type="date"
+                    value={formData.idCardDate || ''}
+                    onChange={(e) => setFormData({ ...formData, idCardDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nơi cấp</label>
+                  <input
+                    type="text"
+                    value={formData.idCardPlace || ''}
+                    onChange={(e) => setFormData({ ...formData, idCardPlace: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Cục Cảnh sát ĐKQL cư trú và DLQG về dân cư"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Ngày đăng ký</label>
+                  <input
+                    type="date"
+                    value={formData.registrationDate}
+                    onChange={(e) => setFormData({ ...formData, registrationDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Quan hệ với chủ hộ</label>
+                  <input
+                    type="text"
+                    value={formData.relationToHead}
+                    onChange={(e) => setFormData({ ...formData, relationToHead: e.target.value })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Con"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Trạng thái</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as ResidentStatus })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={ResidentStatus.ACTIVE}>Thường trú</option>
+                    <option value={ResidentStatus.TEMPORARY_RESIDENT}>Tạm trú</option>
+                    <option value={ResidentStatus.TEMPORARY_ABSENT}>Tạm vắng</option>
+                    <option value={ResidentStatus.MOVED}>Đã chuyển đi</option>
+                    <option value={ResidentStatus.DECEASED}>Đã qua đời</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-6 py-3.5 border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-white hover:border-slate-300 transition-all">
-                  Hủy bỏ
-                </button>
-                <button type="submit" className="flex-[2] px-6 py-3.5 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all active:scale-[0.98]">
-                  Hoàn tất Khai báo
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú</label>
+                <textarea
+                  value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Ghi chú thêm..."
+                />
               </div>
-            </form>
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
+              <button
+                onClick={closeModal}
+                className="px-6 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                Lưu
+              </button>
+            </div>
           </div>
         </div>
       )}

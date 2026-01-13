@@ -1,28 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Home, 
-  CreditCard, 
-  BarChart3, 
-  LogOut, 
-  Menu, 
-  X, 
-  FileText,
-  Wifi,
-  WifiOff,
-  Smartphone,
-  Globe
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import {
+  Users, Home, CreditCard, BarChart3, LogOut, Menu, X, FileText,
+  Wifi, WifiOff
 } from 'lucide-react';
-import { 
-  AppView, 
-  Household, 
-  FeeCampaign, 
-  Payment, 
-  User, 
-  Role 
-} from './types';
-import { INITIAL_HOUSEHOLDS, INITIAL_FEES, INITIAL_USERS, INITIAL_PAYMENTS } from './constants';
+import { Household, FeeCampaign, Payment, User, Role } from './types';
+import { INITIAL_USERS } from './constants';
 import HouseholdManager from './components/HouseholdManager';
 import ResidentManager from './components/ResidentManager';
 import FeeManager from './components/FeeManager';
@@ -32,87 +15,165 @@ import Auth from './components/Auth';
 
 const getApiUrl = () => {
   const hostname = window.location.hostname;
-  // Nếu truy cập qua localhost
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5000/api';
   }
-  // Nếu truy cập qua IP mạng nội bộ (như 192.168.1.188)
   return `http://${hostname}:5000/api`;
 };
 
 const API_URL = getApiUrl();
 
-const App: React.FC = () => {
+// Component chính với Router
+const AppContent: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isOnline, setIsOnline] = useState(false);
-  const [showNetworkInfo, setShowNetworkInfo] = useState(false);
-  
+  const [loading, setLoading] = useState(true);
+
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('tdp7_current_user');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
-  const [view, setView] = useState<AppView>('DASHBOARD');
-  const [households, setHouseholds] = useState<Household[]>(INITIAL_HOUSEHOLDS);
-  const [fees, setFees] = useState<FeeCampaign[]>(INITIAL_FEES);
-  const [payments, setPayments] = useState<Payment[]>(INITIAL_PAYMENTS);
+  const [households, setHouseholds] = useState<Household[]>([]);
+  const [fees, setFees] = useState<FeeCampaign[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Kiểm tra kết nối và load dữ liệu
   useEffect(() => {
-    const checkServer = async () => {
+    const loadData = async () => {
       try {
-        const res = await fetch(`${API_URL}/fees`, { signal: AbortSignal.timeout(3000) });
-        if (res.ok) {
+        const healthRes = await fetch(`${API_URL}/health`, {
+          signal: AbortSignal.timeout(3000)
+        });
+
+        if (healthRes.ok) {
           setIsOnline(true);
-          const [hh, f, p] = await Promise.all([
-            fetch(`${API_URL}/households`).then(r => r.json()),
-            fetch(`${API_URL}/fees`).then(r => r.json()),
-            fetch(`${API_URL}/payments`).then(r => r.json())
+
+          const [hhRes, fRes, pRes] = await Promise.all([
+            fetch(`${API_URL}/households`),
+            fetch(`${API_URL}/fees`),
+            fetch(`${API_URL}/payments`)
           ]);
-          setHouseholds(hh);
-          setFees(f);
-          setPayments(p);
+
+          const [hhData, fData, pData] = await Promise.all([
+            hhRes.json(),
+            fRes.json(),
+            pRes.json()
+          ]);
+
+          setHouseholds(hhData);
+          setFees(fData);
+          setPayments(pData);
+
+          console.log('✓ Đã tải dữ liệu từ server');
         }
       } catch (e) {
         setIsOnline(false);
-        const savedHH = localStorage.getItem('tdp7_households');
-        if (savedHH) setHouseholds(JSON.parse(savedHH));
+        console.log('⚠ Không kết nối được server, chạy offline mode');
+      } finally {
+        setLoading(false);
       }
     };
-    checkServer();
+
+    loadData();
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(2000) });
+        setIsOnline(res.ok);
+      } catch {
+        setIsOnline(false);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('tdp7_households', JSON.stringify(households));
-    localStorage.setItem('tdp7_fees', JSON.stringify(fees));
-    localStorage.setItem('tdp7_payments', JSON.stringify(payments));
-    if (currentUser) {
-      localStorage.setItem('tdp7_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('tdp7_current_user');
+  const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
     }
-  }, [households, fees, payments, currentUser]);
+
+    return response.json();
+  };
+
+  const reloadData = async () => {
+    if (!isOnline) return;
+
+    try {
+      const [hhData, fData, pData] = await Promise.all([
+        apiRequest('/households'),
+        apiRequest('/fees'),
+        apiRequest('/payments')
+      ]);
+
+      setHouseholds(hhData);
+      setFees(fData);
+      setPayments(pData);
+      console.log('✓ Đã reload dữ liệu:', {
+        households: hhData.length,
+        fees: fData.length,
+        payments: pData.length
+      });
+    } catch (error) {
+      console.error('Lỗi reload dữ liệu:', error);
+    }
+  };
+
+  // Auto reload khi vào Dashboard
+  useEffect(() => {
+    if (location.pathname === '/dashboard' && isOnline) {
+      reloadData();
+    }
+  }, [location.pathname, isOnline]);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    setView('DASHBOARD');
+    localStorage.setItem('tdp7_current_user', JSON.stringify(user));
+    navigate('/dashboard');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('tdp7_current_user');
+    navigate('/login');
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!currentUser) {
-    return <Auth onLogin={handleLogin} users={users} setUsers={setUsers} />;
+    return <Auth onLogin={handleLogin} users={users} setUsers={setUsers} apiRequest={apiRequest} />;
   }
 
   const navItems = [
-    { id: 'DASHBOARD', icon: Home, label: 'Bảng điều khiển', roles: [Role.ADMIN, Role.ACCOUNTANT, Role.STAFF] },
-    { id: 'HOUSEHOLDS', icon: FileText, label: 'Quản lý Hộ khẩu', roles: [Role.ADMIN, Role.STAFF] },
-    { id: 'RESIDENTS', icon: Users, label: 'Quản lý Nhân khẩu', roles: [Role.ADMIN, Role.STAFF] },
-    { id: 'FEES', icon: CreditCard, label: 'Thu phí & Đóng góp', roles: [Role.ADMIN, Role.ACCOUNTANT] },
-    { id: 'STATS', icon: BarChart3, label: 'Thống kê báo cáo', roles: [Role.ADMIN, Role.ACCOUNTANT, Role.STAFF] },
+    { path: '/dashboard', icon: Home, label: 'Bảng điều khiển', roles: [Role.ADMIN, Role.ACCOUNTANT, Role.STAFF] },
+    { path: '/households', icon: FileText, label: 'Quản lý Hộ khẩu', roles: [Role.ADMIN, Role.STAFF] },
+    { path: '/residents', icon: Users, label: 'Quản lý Nhân khẩu', roles: [Role.ADMIN, Role.STAFF] },
+    { path: '/fees', icon: CreditCard, label: 'Thu phí & Đóng góp', roles: [Role.ADMIN, Role.ACCOUNTANT] },
+    { path: '/statistics', icon: BarChart3, label: 'Thống kê báo cáo', roles: [Role.ADMIN, Role.ACCOUNTANT, Role.STAFF] },
   ].filter(item => item.roles.includes(currentUser.role));
+
+  const currentPage = navItems.find(item => location.pathname === item.path);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -128,13 +189,12 @@ const App: React.FC = () => {
         <nav className="flex-1 mt-6 px-3">
           {navItems.map((item) => (
             <button
-              key={item.id}
-              onClick={() => setView(item.id as AppView)}
-              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-200 mb-2 ${
-                view === item.id 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                  : 'hover:bg-slate-800 hover:text-white'
-              }`}
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-200 mb-2 ${location.pathname === item.path
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                : 'hover:bg-slate-800 hover:text-white'
+                }`}
             >
               <item.icon className="w-5 h-5 min-w-[20px]" />
               {isSidebarOpen && <span className="font-medium">{item.label}</span>}
@@ -143,21 +203,14 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
-          <button 
-            onClick={() => setShowNetworkInfo(true)}
-            className="w-full flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-slate-800 transition-colors text-blue-400"
-          >
-            <Smartphone className="w-5 h-5 min-w-[20px]" />
-            {isSidebarOpen && <span className="font-medium">Kết nối di động</span>}
-          </button>
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-colors group"
           >
             <LogOut className="w-5 h-5 min-w-[20px] group-hover:rotate-12 transition-transform" />
             {isSidebarOpen && <span className="font-medium">Đăng xuất</span>}
           </button>
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="w-full flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-slate-800 transition-colors"
           >
@@ -173,7 +226,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-800">
-                {navItems.find(i => i.id === view)?.label}
+                {currentPage?.label || 'TDP 7 La Khê'}
               </h2>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-slate-500">TDP 7 Phường La Khê</p>
@@ -186,14 +239,14 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden lg:flex flex-col items-end mr-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Địa chỉ máy chủ</span>
-              <span className="text-xs font-mono text-slate-600">{window.location.hostname}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Server</span>
+              <span className="text-xs font-mono text-slate-600">{window.location.hostname}:5000</span>
             </div>
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800">{currentUser.fullName}</p>
               <p className="text-xs font-semibold text-blue-600">
-                {currentUser.role === Role.ADMIN ? 'Tổ trưởng / Tổ phó' : 
-                 currentUser.role === Role.ACCOUNTANT ? 'Kế toán' : 'Cán bộ'}
+                {currentUser.role === Role.ADMIN ? 'Tổ trưởng / Tổ phó' :
+                  currentUser.role === Role.ACCOUNTANT ? 'Kế toán' : 'Cán bộ'}
               </p>
             </div>
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow-md">
@@ -203,95 +256,78 @@ const App: React.FC = () => {
         </header>
 
         <div className="p-8 max-w-7xl mx-auto">
-          {view === 'DASHBOARD' && (
-            <Dashboard 
-              households={households} 
-              payments={payments} 
-              setView={setView} 
-            />
-          )}
-          {view === 'HOUSEHOLDS' && (
-            <HouseholdManager 
-              households={households} 
-              setHouseholds={setHouseholds} 
-            />
-          )}
-          {view === 'RESIDENTS' && (
-            <ResidentManager 
-              households={households} 
-              setHouseholds={setHouseholds} 
-            />
-          )}
-          {view === 'FEES' && (
-            <FeeManager 
-              households={households} 
-              fees={fees} 
-              payments={payments}
-              setPayments={setPayments}
-              setFees={setFees}
-            />
-          )}
-          {view === 'STATS' && (
-            <Statistics 
-              households={households} 
-              payments={payments} 
-              fees={fees}
-            />
-          )}
+          <Routes>
+            <Route path="/dashboard" element={
+              <Dashboard
+                households={households}
+                payments={payments}
+                setView={(view) => {
+                  const pathMap: Record<string, string> = {
+                    'HOUSEHOLDS': '/households',
+                    'RESIDENTS': '/residents',
+                    'FEES': '/fees',
+                    'STATS': '/statistics'
+                  };
+                  navigate(pathMap[view] || '/dashboard');
+                }}
+                reloadData={reloadData}
+                isOnline={isOnline}
+              />
+            } />
+            <Route path="/households" element={
+              <HouseholdManager
+                households={households}
+                setHouseholds={setHouseholds}
+                apiRequest={apiRequest}
+                reloadData={reloadData}
+                isOnline={isOnline}
+              />
+            } />
+            <Route path="/residents" element={
+              <ResidentManager
+                households={households}
+                setHouseholds={setHouseholds}
+                apiRequest={apiRequest}
+                reloadData={reloadData}
+                isOnline={isOnline}
+              />
+            } />
+            <Route path="/fees" element={
+              <FeeManager
+                households={households}
+                fees={fees}
+                payments={payments}
+                setPayments={setPayments}
+                setFees={setFees}
+                apiRequest={apiRequest}
+                reloadData={reloadData}
+                isOnline={isOnline}
+              />
+            } />
+            <Route path="/statistics" element={
+              <Statistics
+                households={households}
+                payments={payments}
+                fees={fees}
+              />
+            } />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </div>
       </main>
-
-      {/* Network Info Modal */}
-      {showNetworkInfo && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
-                  <Smartphone className="w-6 h-6" />
-                </div>
-                <button onClick={() => setShowNetworkInfo(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-              
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Kết nối từ thiết bị khác</h3>
-              <p className="text-slate-500 text-sm mb-6">Đảm bảo điện thoại của bạn đang dùng chung WiFi với máy tính này.</p>
-              
-              <div className="space-y-4">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Bước 1: Truy cập địa chỉ</p>
-                  <p className="text-lg font-mono font-bold text-blue-600 break-all">
-                    http://192.168.1.188:{window.location.port || '3000'}
-                  </p>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Bước 2: Máy chủ dữ liệu (API)</p>
-                  <p className="text-sm font-mono text-slate-600">
-                    http://192.168.1.188:5000/api
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex items-center gap-3 p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 text-sm">
-                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                  <Globe className="w-4 h-4" />
-                </div>
-                <p className="font-medium">Hệ thống đã sẵn sàng nhận kết nối từ IP nội bộ của bạn.</p>
-              </div>
-
-              <button 
-                onClick={() => setShowNetworkInfo(false)}
-                className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
-              >
-                Đã hiểu
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+  );
+};
+
+// App wrapper với BrowserRouter
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<AppContent />} />
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 
